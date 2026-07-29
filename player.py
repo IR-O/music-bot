@@ -19,31 +19,22 @@ class MusicPlayer:
     async def play_song(self, chat_id, query):
         """Play song using ShrutiBots API"""
         try:
-            # Process query
+            # Check if it's a search query or URL
             if not query.startswith("http"):
-                # Search using yt-dlp only for search
-                import yt_dlp
-                ydl_opts = {
-                    'quiet': True,
-                    'no_warnings': True,
-                    'extract_flat': True,
-                }
-                with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-                    info = ydl.extract_info(f"ytsearch:{query}", download=False)
-                    if info and 'entries' in info and len(info['entries']) > 0:
-                        video_url = info['entries'][0]['url']
-                    else:
-                        return False, None
+                # Search YouTube
+                video_url = await YouTube.search(query)
+                if not video_url:
+                    return False, None
             else:
                 video_url = query
             
-            # Get video info using API
+            # Get video info
             video_info = await YouTube.get_video_info(video_url)
             if not video_info:
-                # Try to get basic info from URL
+                # If info fetch fails, create basic info
                 video_id = await YouTube.extract_video_id(video_url)
                 video_info = {
-                    'title': f"Video {video_id[:8]}",
+                    'title': f"Video {video_id[:8] if video_id else 'Unknown'}",
                     'duration': 0,
                     'uploader': 'Unknown',
                     'thumbnail': '',
