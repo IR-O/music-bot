@@ -2,22 +2,23 @@ import yt_dlp
 import random
 
 class MusicPlayer:
-    def __init__(self, app):
-        self.app = app
+    def __init__(self, assistant_app):
+        self.assistant_app = assistant_app
         self.current_song = None
         self.is_playing = False
         
-        # User agents for rotation
         self.user_agents = [
             'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
             'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36',
             'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36'
         ]
 
+    async def start(self):
+        print("✅ Music Player initialized!")
+
     async def play_song(self, chat_id, query):
-        """Play song in voice chat"""
+        """Assistant account se song play karega"""
         try:
-            # Check if it's a URL or search query
             if not query.startswith("http"):
                 query = f"ytsearch:{query}"
             
@@ -38,7 +39,6 @@ class MusicPlayer:
                 'user_agent': user_agent,
                 'headers': {
                     'User-Agent': user_agent,
-                    'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
                 }
             }
             
@@ -48,7 +48,6 @@ class MusicPlayer:
                 if not info:
                     return False
                 
-                # Get audio URL
                 audio_url = info.get('url')
                 if not audio_url:
                     formats = info.get('formats', [])
@@ -62,8 +61,8 @@ class MusicPlayer:
                 
                 title = info.get('title', 'Unknown')
                 
-                # Send audio to voice chat (bot account)
-                await self.app.send_audio(
+                # Assistant account se audio send karo (voice chat mein play hoga)
+                await self.assistant_app.send_audio(
                     chat_id=chat_id,
                     audio=audio_url,
                     duration=info.get('duration', 0),
@@ -80,7 +79,6 @@ class MusicPlayer:
             return False
 
     async def stop_stream(self):
-        """Stop current stream"""
         self.is_playing = False
         self.current_song = None
         return True
