@@ -1,6 +1,5 @@
 from pyrogram import Client, filters
 from pyrogram.types import Message, InlineKeyboardMarkup, InlineKeyboardButton
-from player import MusicPlayer
 
 class Handler:
     def __init__(self, app, player):
@@ -10,7 +9,7 @@ class Handler:
     def register_handlers(self):
         
         # ============ START COMMAND ============
-        @self.app.on_message(filters.command("start") & filters.private)
+        @self.app.on_message(filters.command("start"))
         async def start_command(client, message: Message):
             user = message.from_user
             await message.reply_text(
@@ -18,7 +17,7 @@ class Handler:
                 "I'm a **Music Bot** that can play songs in voice chats!\n\n"
                 "**🎮 How to use:**\n"
                 "1. Add me to a group\n"
-                "2. Make me admin in the group\n"
+                "2. Make me admin\n"
                 "3. Start a voice chat\n"
                 "4. Send: `/play <song name or URL>`\n\n"
                 "**📝 Commands:**\n"
@@ -27,13 +26,8 @@ class Handler:
                 "• `/pause` - Pause the song\n"
                 "• `/resume` - Resume the song\n"
                 "• `/current` - Current playing song\n\n"
-                "**🔗 Source Code:** [GitHub](https://github.com/)\n"
                 "**👨‍💻 Developer:** @narratorxcb",
-                disable_web_page_preview=True,
-                reply_markup=InlineKeyboardMarkup([
-                    [InlineKeyboardButton("➕ Add to Group", url="https://t.me/YourBotUsername?startgroup=true")],
-                    [InlineKeyboardButton("📢 Updates", url="https://t.me/your_channel")]
-                ])
+                disable_web_page_preview=True
             )
 
         # ============ PLAY COMMAND ============
@@ -49,14 +43,7 @@ class Handler:
                 )
                 return
 
-            # Get search query
             query = " ".join(message.command[1:])
-            
-            # Check if it's a URL
-            if not query.startswith("http"):
-                # Search YouTube
-                query = f"ytsearch:{query}"
-            
             chat_id = message.chat.id
             
             # Send processing message
@@ -66,22 +53,19 @@ class Handler:
             )
             
             try:
-                # Try to join voice chat first
+                # Bot directly joins voice chat
                 join_success = await self.join_voice_chat(chat_id)
                 if not join_success:
                     await processing_msg.edit_text(
                         "❌ **Failed to join voice chat!**\n\n"
                         "Make sure:\n"
                         "• I'm an admin in this group\n"
-                        "• Voice chat is active\n"
-                        "• I have permission to speak"
+                        "• Voice chat is active"
                     )
                     return
                 
-                # Try video first, then audio
-                success = await self.player.stream_video(chat_id, query)
-                if not success:
-                    success = await self.player.stream_audio(chat_id, query)
+                # Play the song
+                success = await self.player.play_song(chat_id, query)
                 
                 if success:
                     await processing_msg.edit_text(
@@ -103,48 +87,35 @@ class Handler:
             except Exception as e:
                 await processing_msg.edit_text(
                     f"❌ **Error:** {str(e)[:200]}\n\n"
-                    "Please try again with a different song."
+                    "Please try again."
                 )
 
         # ============ STOP COMMAND ============
         @self.app.on_message(filters.command("stop") & filters.group)
         async def stop_command(client, message: Message):
             chat_id = message.chat.id
-            success = await self.player.stop_stream(chat_id)
+            success = await self.player.stop_stream()
             
             if success:
-                await message.reply_text(
-                    "⏹️ **Stream stopped!**\n\n"
-                    "You can start a new song with `/play`"
-                )
+                await message.reply_text("⏹️ **Stream stopped!**")
             else:
                 await message.reply_text("❌ **No active stream to stop!**")
 
         # ============ PAUSE COMMAND ============
         @self.app.on_message(filters.command("pause") & filters.group)
         async def pause_command(client, message: Message):
-            chat_id = message.chat.id
-            success = await self.player.pause_stream(chat_id)
-            
+            success = await self.player.pause_stream()
             if success:
-                await message.reply_text(
-                    "⏸️ **Stream paused!**\n\n"
-                    "Use `/resume` to continue playing."
-                )
+                await message.reply_text("⏸️ **Stream paused!**")
             else:
                 await message.reply_text("❌ **Failed to pause!**")
 
         # ============ RESUME COMMAND ============
         @self.app.on_message(filters.command("resume") & filters.group)
         async def resume_command(client, message: Message):
-            chat_id = message.chat.id
-            success = await self.player.resume_stream(chat_id)
-            
+            success = await self.player.resume_stream()
             if success:
-                await message.reply_text(
-                    "▶️ **Stream resumed!**\n\n"
-                    "Now playing again."
-                )
+                await message.reply_text("▶️ **Stream resumed!**")
             else:
                 await message.reply_text("❌ **Failed to resume!**")
 
@@ -160,14 +131,13 @@ class Handler:
             else:
                 await message.reply_text("❌ **No song is currently playing!**")
 
-    # ============ HELP FUNCTION TO JOIN VOICE CHAT ============
+    # ============ JOIN VOICE CHAT ============
     async def join_voice_chat(self, chat_id):
-        """Helper function to join voice chat"""
+        """Bot joins voice chat"""
         try:
-            from pyrogram.raw.functions.phone import CreateGroupCall, JoinGroupCall
-            from pyrogram.raw.types import InputGroupCall, InputPeerChat
+            from pyrogram.raw.functions.phone import CreateGroupCall
             
-            # Try to create voice chat if not exists
+            # Try to create voice chat
             try:
                 await self.app.invoke(
                     CreateGroupCall(
