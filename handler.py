@@ -32,7 +32,7 @@ class Handler:
                 disable_web_page_preview=True
             )
 
-        # ============ PLAY COMMAND (Beautiful Message) ============
+        # ============ PLAY COMMAND ============
         @self.bot_app.on_message(filters.command("play") & filters.group)
         async def play_command(client, message: Message):
             if len(message.command) < 2:
@@ -70,33 +70,25 @@ class Handler:
                 success, song_info = await self.player.play_song(chat_id, query)
                 
                 if success and song_info:
-                    # Create beautiful message with song details
                     await processing_msg.delete()
                     
                     # Format duration
-                    duration = song_info['duration']
+                    duration = song_info.get('duration', 0)
                     minutes = duration // 60
                     seconds = duration % 60
                     duration_str = f"{minutes}:{seconds:02d}"
                     
-                    # Create progress bar
-                    progress_bar = self.create_progress_bar(0)
-                    
-                    # Create message text
+                    # Create message
                     message_text = f"""
 🎵 **{song_info['title'][:50]}**
-{'⭐' * 5}
 
 👤 **Uploader:** {song_info['uploader']}
-⏱ **Duration:** `{duration_str} min`
+⏱ **Duration:** `{duration_str}`
 📢 **Status:** `▶️ Playing`
-
-{progress_bar}
 
 📌 **Requested by:** {message.from_user.mention}
                     """
                     
-                    # Send beautiful message with buttons
                     await self.bot_app.send_message(
                         chat_id=chat_id,
                         text=message_text,
@@ -105,10 +97,6 @@ class Handler:
                                 InlineKeyboardButton("⏸ Pause", callback_data="pause"),
                                 InlineKeyboardButton("⏹ Stop", callback_data="stop"),
                                 InlineKeyboardButton("▶️ Resume", callback_data="resume")
-                            ],
-                            [
-                                InlineKeyboardButton("🔄 Autoplay", callback_data="autoplay"),
-                                InlineKeyboardButton("📋 Queue", callback_data="queue")
                             ],
                             [
                                 InlineKeyboardButton("🔗 Watch on YouTube", url=song_info['url'])
@@ -121,7 +109,7 @@ class Handler:
                         "❌ **Failed to play!**\n\n"
                         "Possible reasons:\n"
                         "• Invalid YouTube URL\n"
-                        "• YouTube is blocked\n"
+                        "• API Key invalid or expired\n"
                         "• Song not found\n\n"
                         "Try another song or URL."
                     )
@@ -132,7 +120,7 @@ class Handler:
                     "Please try again."
                 )
 
-        # ============ CALLBACK HANDLER (Buttons) ============
+        # ============ CALLBACK HANDLER ============
         @self.bot_app.on_callback_query()
         async def callback_handler(client, callback_query):
             data = callback_query.data
@@ -141,27 +129,15 @@ class Handler:
             if data == "pause":
                 await self.player.pause_stream()
                 await callback_query.answer("⏸️ Paused!")
-                await callback_query.message.edit_text(
-                    callback_query.message.text + "\n\n⏸️ **Paused**"
-                )
                 
             elif data == "resume":
                 await self.player.resume_stream()
                 await callback_query.answer("▶️ Resumed!")
-                await callback_query.message.edit_text(
-                    callback_query.message.text.replace("⏸️ Paused", "▶️ Playing")
-                )
                 
             elif data == "stop":
                 await self.player.stop_stream()
                 await callback_query.answer("⏹️ Stopped!")
                 await callback_query.message.delete()
-                
-            elif data == "autoplay":
-                await callback_query.answer("🔄 Autoplay enabled!")
-                
-            elif data == "queue":
-                await callback_query.answer("📋 Queue is empty!")
 
         # ============ STOP COMMAND ============
         @self.bot_app.on_message(filters.command("stop") & filters.group)
@@ -206,7 +182,7 @@ class Handler:
             else:
                 await message.reply_text("❌ **No song is currently playing!**")
 
-    # ============ HELPER FUNCTIONS ============
+    # ============ VOICE CHAT JOIN ============
     async def join_voice_chat(self, chat_id):
         """Assistant voice chat join karega"""
         try:
@@ -226,11 +202,3 @@ class Handler:
         except Exception as e:
             print(f"Error joining voice chat: {e}")
             return False
-
-    def create_progress_bar(self, current_time, total_time=180):
-        """Create a progress bar"""
-        percentage = (current_time / total_time) * 100 if total_time > 0 else 0
-        filled = int(percentage / 10)
-        empty = 10 - filled
-        bar = "█" * filled + "░" * empty
-        return f"`{bar}` {percentage:.0f}%"
