@@ -1,6 +1,5 @@
 from pyrogram import Client, filters
 from pyrogram.types import Message, InlineKeyboardMarkup, InlineKeyboardButton
-import time
 
 class Handler:
     def __init__(self, bot_app, player, assistant_app):
@@ -55,7 +54,7 @@ class Handler:
             )
             
             try:
-                # Join voice chat
+                # Join voice chat via assistant
                 join_success = await self.join_voice_chat(chat_id)
                 if not join_success:
                     await processing_msg.edit_text(
@@ -73,12 +72,15 @@ class Handler:
                     await processing_msg.delete()
                     
                     # Format duration
-                    duration = song_info.get('duration', 0)
+                    duration = song_info['duration']
                     minutes = duration // 60
                     seconds = duration % 60
-                    duration_str = f"{minutes}:{seconds:02d}"
+                    duration_str = f"{minutes}:{seconds:02d}" if duration > 0 else "Live"
                     
-                    # Create message
+                    # Create progress bar
+                    progress = "▬▬▬▬▬▬▬▬▬▬"
+                    
+                    # Beautiful message
                     message_text = f"""
 🎵 **{song_info['title'][:50]}**
 
@@ -86,9 +88,12 @@ class Handler:
 ⏱ **Duration:** `{duration_str}`
 📢 **Status:** `▶️ Playing`
 
+{progress} `0%`
+
 📌 **Requested by:** {message.from_user.mention}
                     """
                     
+                    # Send beautiful message with buttons
                     await self.bot_app.send_message(
                         chat_id=chat_id,
                         text=message_text,
@@ -109,7 +114,7 @@ class Handler:
                         "❌ **Failed to play!**\n\n"
                         "Possible reasons:\n"
                         "• Invalid YouTube URL\n"
-                        "• API Key invalid or expired\n"
+                        "• YouTube is blocked\n"
                         "• Song not found\n\n"
                         "Try another song or URL."
                     )
@@ -129,10 +134,16 @@ class Handler:
             if data == "pause":
                 await self.player.pause_stream()
                 await callback_query.answer("⏸️ Paused!")
+                await callback_query.message.edit_text(
+                    callback_query.message.text + "\n\n⏸️ **Paused**"
+                )
                 
             elif data == "resume":
                 await self.player.resume_stream()
                 await callback_query.answer("▶️ Resumed!")
+                await callback_query.message.edit_text(
+                    callback_query.message.text.replace("⏸️ Paused", "▶️ Playing")
+                )
                 
             elif data == "stop":
                 await self.player.stop_stream()
