@@ -1,6 +1,5 @@
 import os
-import yt_dlp
-import random
+from youtube_api import YouTube
 
 class MusicPlayer:
     def __init__(self, assistant_app):
@@ -11,87 +10,67 @@ class MusicPlayer:
         self.current_title = None
         self.is_playing = False
         self.current_url = None
-        self.current_info = None
 
     async def start(self):
         print("✅ Music Player initialized!")
 
     async def play_song(self, chat_id, query):
-        """Assistant voice chat mein song play karega"""
+        """Play song using ShrutiBots API"""
         try:
-            # Search or direct URL
+            # Search if not URL
             if not query.startswith("http"):
-                query = f"ytsearch:{query}"
+                video_url = await YouTube.search(query)
+                if not video_url:
+                    return False, None
+            else:
+                video_url = query
+            
+            # Extract video ID
+            video_id = await YouTube.extract_video_id(video_url)
+            if not video_id:
+                return False, None
             
             # Get video info
-            ydl_opts = {
-                'format': 'bestaudio/best',
-                'quiet': True,
-                'no_warnings': True,
-                'extract_flat': False,
-                'ignoreerrors': True,
-                'extractor_args': {
-                    'youtube': {
-                        'player_client': ['android', 'web', 'ios'],
-                        'skip': ['hls', 'dash'],
-                    }
-                },
-                'user_agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
-                'headers': {
-                    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
-                }
-            }
+            video_info = await YouTube.get_video_info(video_id)
             
-            with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-                info = ydl.extract_info(query, download=False)
-                
-                if not info:
-                    return False, None
-                
-                # Get audio URL
-                audio_url = info.get('url')
-                if not audio_url:
-                    formats = info.get('formats', [])
-                    for f in formats:
-                        if f.get('acodec') != 'none' and f.get('vcodec') == 'none':
-                            audio_url = f.get('url')
-                            break
-                
-                if not audio_url:
-                    return False, None
-                
-                # Extract details
-                title = info.get('title', 'Unknown')
-                duration = info.get('duration', 0)
-                uploader = info.get('uploader', 'Unknown')
-                thumbnail = info.get('thumbnail', '')
-                video_url = info.get('webpage_url', '')
-                
-                # Save info
-                self.current_song = title
-                self.current_duration = duration
-                self.current_uploader = uploader
-                self.current_title = title
-                self.current_url = video_url
-                self.current_info = info
-                self.is_playing = True
-                
-                # Assistant se audio send karo (voice chat mein play hoga)
-                await self.assistant_app.send_audio(
-                    chat_id=chat_id,
-                    audio=audio_url,
-                    duration=duration,
-                    performer=uploader,
-                    title=title
-                )
-                
-                return True, {
-                    'title': title,
-                    'duration': duration,
-                    'uploader': uploader,
-                    'thumbnail': thumbnail,
+            if not video_info:
+                video_info = {
+                    'title': query[:50],
+                    'duration': 0,
+                    'uploader': 'Unknown',
+                    'thumbnail': '',
                     'url': video_url
                 }
+            
+            # Download using API
+            success, result = await YouTube.download_audio(video_id)
+            
+            if not success:
+                return False, None
+            
+            # Save info
+            self.current_song = video_info['title']
+            self.current_duration = video_info['duration']
+            self.current_uploader = video_info['uploader']
+            self.current_url = video_info['url']
+            self.is_playing = True
+            
+            # Send to voice chat
+            await self.assistant_app.send_audio(
+                chat_id=chat_id,
+                audio=result,
+                duration=video_info['duration'],
+                performer=video_info['uploader'],
+                title=video_info['title']
+            )
+            
+            # Clean up
+            try:
+                os.remove(result)
+            except:
+                pass
+            
+            return True, video_info
                 
         except Exception as e:
             print(f"❌ Stream error: {e}")
