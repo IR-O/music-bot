@@ -5,33 +5,26 @@ from player import MusicPlayer
 from handler import Handler
 
 async def main():
-    # Initialize Pyrogram client
+    # SESSION_STRING use karein
     app = Client(
-        Config.SESSION_NAME,
+        name=Config.SESSION_NAME,
         api_id=Config.API_ID,
         api_hash=Config.API_HASH,
-        bot_token=Config.BOT_TOKEN
+        bot_token=Config.BOT_TOKEN,
+        session_string=Config.SESSION_STRING  # <-- Naya add
     )
 
-    # Initialize player
     player = MusicPlayer(app)
-    
-    # Initialize handler
     handler = Handler(app, player)
-    
-    # Register handlers
     handler.register_handlers()
 
     try:
-        # Start client
         await app.start()
         print("🤖 Bot started successfully!")
         
-        # Start player
         await player.start()
         print("🎵 Player started successfully!")
         
-        # Keep bot running
         await asyncio.Event().wait()
         
     except Exception as e:
