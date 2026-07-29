@@ -7,5 +7,6 @@ class Config:
     API_ID = int(os.getenv("API_ID"))
     API_HASH = os.getenv("API_HASH")
     BOT_TOKEN = os.getenv("BOT_TOKEN")
-    SESSION_NAME = "music_bot"
+    SESSION_STRING = os.getenv("SESSION_STRING")  # <-- Naya add
+    SESSION_NAME = "my_session"
     PLAYLIST = []
