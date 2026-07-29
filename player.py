@@ -1,84 +1,86 @@
 import os
-from youtube_api import YouTube
+import asyncio
+from collections import deque
+from utils import get_audio_stream, get_video_stream
 
 class MusicPlayer:
     def __init__(self, assistant_app):
         self.assistant_app = assistant_app
         self.current_song = None
-        self.current_duration = 0
-        self.current_uploader = None
-        self.current_title = None
         self.is_playing = False
-        self.current_url = None
+        self.queue = deque()
+        self.current_chat_id = None
+        self.current_info = None
 
     async def start(self):
         print("✅ Music Player initialized!")
 
-    async def play_song(self, chat_id, query):
-        """Play song using ShrutiBots API"""
+    def add_to_queue(self, chat_id, file_path, song_info):
+        """Add song to queue"""
+        self.queue.append({
+            'chat_id': chat_id,
+            'file': file_path,
+            'info': song_info
+        })
+        return len(self.queue)
+
+    def get_next_song(self):
+        """Get next song from queue"""
+        if self.queue:
+            return self.queue.popleft()
+        return None
+
+    def clear_queue(self):
+        """Clear queue"""
+        self.queue.clear()
+
+    async def play_song(self, chat_id, query, is_video=False):
+        """Play song"""
         try:
+            from youtube_search import YoutubeSearch
+            
             # Search if not URL
             if not query.startswith("http"):
-                video_url = await YouTube.search(query)
-                if not video_url:
+                results = YoutubeSearch(query, max_results=1).to_dict()
+                if not results:
                     return False, None
+                link = f"https://youtube.com{results[0]['url_suffix']}"
+                title = results[0]["title"][:40]
+                thumbnail = results[0]["thumbnails"][0]
+                duration = results[0]["duration"]
+                views = results[0]["views"]
             else:
-                video_url = query
+                link = query
+                title = "Unknown"
+                thumbnail = None
+                duration = "0:00"
+                views = "0"
             
-            # Extract video ID
-            video_id = await YouTube.extract_video_id(video_url)
-            if not video_id:
-                return False, None
+            # Get stream
+            if is_video:
+                file_path = await get_video_stream(link)
+            else:
+                file_path = await get_audio_stream(link)
             
-            # Get video info
-            video_info = await YouTube.get_video_info(video_id)
+            song_info = {
+                'title': title,
+                'duration': duration,
+                'thumbnail': thumbnail,
+                'views': views,
+                'link': link
+            }
             
-            if not video_info:
-                video_info = {
-                    'title': query[:50],
-                    'duration': 0,
-                    'uploader': 'Unknown',
-                    'thumbnail': '',
-                    'url': video_url
-                }
+            return True, {'file': file_path, 'info': song_info}
             
-            # Download using API
-            success, result = await YouTube.download_audio(video_id)
-            
-            if not success:
-                return False, None
-            
-            # Save info
-            self.current_song = video_info['title']
-            self.current_duration = video_info['duration']
-            self.current_uploader = video_info['uploader']
-            self.current_url = video_info['url']
-            self.is_playing = True
-            
-            # Send to voice chat
-            await self.assistant_app.send_audio(
-                chat_id=chat_id,
-                audio=result,
-                duration=video_info['duration'],
-                performer=video_info['uploader'],
-                title=video_info['title']
-            )
-            
-            # Clean up
-            try:
-                os.remove(result)
-            except:
-                pass
-            
-            return True, video_info
-                
         except Exception as e:
-            print(f"❌ Stream error: {e}")
+            print(f"Error: {e}")
             return False, None
 
     async def stop_stream(self):
         self.is_playing = False
         self.current_song = None
+        self.current_chat_id = None
+        self.clear_queue()
         return True
 
     async def pause_stream(self):
