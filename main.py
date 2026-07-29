@@ -37,6 +37,8 @@ async def main():
         
         print("="*50)
         print("✅ Bot is running successfully!")
+        print("📌 Assistant: Voice Chat Player")
+        print("📌 Bot: Command Handler")
         print("="*50)
         
         await asyncio.Event().wait()
