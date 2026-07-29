@@ -1,6 +1,5 @@
 import asyncio
 from pyrogram import Client
-from pytgcalls import PyTgCalls, AudioPiped
 from config import Config
 from player import MusicPlayer
 from handler import Handler
@@ -22,14 +21,11 @@ async def main():
         session_string=Config.ASSISTANT_SESSION
     )
     
-    # PyTgCalls
-    pytgcalls = PyTgCalls(assistant_app)
-    
     # Player
     player = MusicPlayer(assistant_app)
     
     # Handler
-    handler = Handler(bot_app, player, assistant_app, pytgcalls)
+    handler = Handler(bot_app, player, assistant_app)
     handler.register_handlers()
 
     try:
@@ -39,14 +35,17 @@ async def main():
         await bot_app.start()
         print("🤖 Bot started!")
         
-        await pytgcalls.start()
-        print("🎵 PyTgCalls started!")
-        
         await player.start()
         print("✅ Music Player ready!")
         
         print("="*50)
         print("✅ Bot is running successfully!")
+        print("📌 /play - Play music")
+        print("📌 /vplay - Play video")
+        print("📌 /skip - Skip song")
+        print("📌 /pause - Pause")
+        print("📌 /resume - Resume")
+        print("📌 /stop - Stop")
         print("="*50)
         
         await asyncio.Event().wait()
