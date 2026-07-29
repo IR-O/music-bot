@@ -5,7 +5,7 @@ from player import MusicPlayer
 from handler import Handler
 
 async def main():
-    # Bot Account - Commands handle karega aur replies dega
+    # Bot Account - Commands handle karega
     bot_app = Client(
         name="bot_account",
         api_id=Config.BOT_API_ID,
@@ -21,15 +21,11 @@ async def main():
         session_string=Config.ASSISTANT_SESSION
     )
 
-    # Player assistant ke saath initialize karo (voice chat wala)
     player = MusicPlayer(assistant_app)
-    
-    # Handler bot ke saath initialize karo (commands wala)
     handler = Handler(bot_app, player, assistant_app)
     handler.register_handlers()
 
     try:
-        # Dono ko start karo
         await assistant_app.start()
         print("🤖 Assistant started! (Voice Chat Player)")
         
@@ -41,8 +37,6 @@ async def main():
         
         print("="*50)
         print("✅ Bot is running successfully!")
-        print("📌 Bot handles commands")
-        print("📌 Assistant plays songs in voice chat")
         print("="*50)
         
         await asyncio.Event().wait()
