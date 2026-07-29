@@ -2,3 +2,4 @@ python-dotenv==1.0.1
 pyrogram==2.0.106
 pytgcalls==3.0.0
 yt-dlp==2024.8.6
+gunicorn==20.1.0
