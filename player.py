@@ -1,69 +1,102 @@
 import os
 import random
+import yt_dlp
 from youtube import YouTube
 
 class MusicPlayer:
     def __init__(self, assistant_app):
         self.assistant_app = assistant_app
         self.current_song = None
+        self.current_duration = 0
+        self.current_thumbnail = None
+        self.current_uploader = None
+        self.current_title = None
         self.is_playing = False
+        self.current_url = None
 
     async def start(self):
         print("✅ Music Player initialized!")
 
     async def play_song(self, chat_id, query):
-        """Play song using ShrutiBots API"""
+        """Play song using yt-dlp directly (bypass YouTube block)"""
         try:
-            # Check if it's a search query or URL
+            # Search or direct URL
             if not query.startswith("http"):
-                # For search, we need to get first result
-                # Using yt-dlp for search only
-                import yt_dlp
-                ydl_opts = {
-                    'format': 'bestaudio/best',
-                    'quiet': True,
-                    'no_warnings': True,
-                    'extract_flat': True,
+                query = f"ytsearch:{query}"
+            
+            # Get video info
+            ydl_opts = {
+                'format': 'bestaudio/best',
+                'quiet': True,
+                'no_warnings': True,
+                'extract_flat': False,
+                'ignoreerrors': True,
+                'extractor_args': {
+                    'youtube': {
+                        'player_client': ['android', 'web', 'ios'],
+                        'skip': ['hls', 'dash'],
+                    }
+                },
+                'user_agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+                'headers': {
+                    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
                 }
-                with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-                    info = ydl.extract_info(f"ytsearch:{query}", download=False)
-                    if info and 'entries' in info and len(info['entries']) > 0:
-                        video_url = info['entries'][0]['url']
-                    else:
-                        return False
-            else:
-                video_url = query
-
-            # Download using API
-            success, result = await YouTube.download_audio(video_url)
+            }
             
-            if not success:
-                # Try video as fallback
-                success, result = await YouTube.download_video(video_url)
-                if not success:
-                    return False
-
-            # Send to voice chat
-            await self.assistant_app.send_audio(
-                chat_id=chat_id,
-                audio=result,
-                title="Playing Music"
-            )
-            
-            self.current_song = query
-            self.is_playing = True
-            
-            # Clean up downloaded file
-            try:
-                os.remove(result)
-            except:
-                pass
+            with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+                info = ydl.extract_info(query, download=False)
                 
-            return True
+                if not info:
+                    return False, None
+                
+                # Get audio URL
+                audio_url = info.get('url')
+                if not audio_url:
+                    formats = info.get('formats', [])
+                    for f in formats:
+                        if f.get('acodec') != 'none' and f.get('vcodec') == 'none':
+                            audio_url = f.get('url')
+                            break
+                
+                if not audio_url:
+                    return False, None
+                
+                # Extract details
+                title = info.get('title', 'Unknown')
+                duration = info.get('duration', 0)
+                uploader = info.get('uploader', 'Unknown')
+                thumbnail = info.get('thumbnail', '')
+                video_url = info.get('webpage_url', '')
+                
+                # Save for later
+                self.current_song = title
+                self.current_duration = duration
+                self.current_thumbnail = thumbnail
+                self.current_uploader = uploader
+                self.current_title = title
+                self.current_url = video_url
+                self.is_playing = True
+                
+                # Send audio to voice chat
+                await self.assistant_app.send_audio(
+                    chat_id=chat_id,
+                    audio=audio_url,
+                    duration=duration,
+                    performer=uploader,
+                    title=title
+                )
+                
+                return True, {
+                    'title': title,
+                    'duration': duration,
+                    'uploader': uploader,
+                    'thumbnail': thumbnail,
+                    'url': video_url
+                }
                 
         except Exception as e:
             print(f"❌ Stream error: {e}")
-            return False
+            return False, None
 
     async def stop_stream(self):
         self.is_playing = False
