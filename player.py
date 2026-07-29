@@ -1,4 +1,4 @@
-from pytgcalls import PyTgCalls, Stream
+from pytgcalls import PyTgCalls
 from pytgcalls.types import AudioPiped, VideoPiped
 import yt_dlp
 import asyncio
