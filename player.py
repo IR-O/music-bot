@@ -1,8 +1,7 @@
-from pyrogram import Client, filters
-from pyrogram.raw.functions.phone import CreateGroupCall, DiscardGroupCall
-from pyrogram.raw.types import InputGroupCall
+from pyrogram import Client
 import yt_dlp
 import asyncio
+import random
 
 class MusicPlayer:
     def __init__(self, app):
@@ -10,29 +9,63 @@ class MusicPlayer:
         self.current_song = None
         self.is_playing = False
         self.chat_id = None
-        self.group_call = None
+        
+        # Multiple user agents for rotation
+        self.user_agents = [
+            'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+            'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36',
+            'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36'
+        ]
 
     async def start(self):
         print("✅ Music Player initialized!")
 
     async def stream_audio(self, chat_id, url):
-        """Stream audio from YouTube URL using Pyrogram"""
+        """Stream audio from YouTube"""
         try:
+            user_agent = random.choice(self.user_agents)
+            
             ydl_opts = {
                 'format': 'bestaudio/best',
                 'quiet': True,
                 'no_warnings': True,
+                'extract_flat': False,
+                'ignoreerrors': True,
+                'extractor_args': {
+                    'youtube': {
+                        'player_client': ['android', 'web'],
+                        'skip': ['hls', 'dash'],
+                    }
+                },
+                'user_agent': user_agent,
+                'headers': {
+                    'User-Agent': user_agent,
+                    'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+                }
             }
             
             with yt_dlp.YoutubeDL(ydl_opts) as ydl:
                 info = ydl.extract_info(url, download=False)
-                audio_url = info['url']
+                
+                if not info:
+                    return False
+                
+                # Get audio URL
+                audio_url = info.get('url')
+                if not audio_url:
+                    # Try to get from formats
+                    formats = info.get('formats', [])
+                    for f in formats:
+                        if f.get('acodec') != 'none' and f.get('vcodec') == 'none':
+                            audio_url = f.get('url')
+                            break
+                
+                if not audio_url:
+                    return False
+                
                 title = info.get('title', 'Unknown')
                 
-                # Start voice chat
-                await self.start_voice_chat(chat_id)
-                
-                # Stream audio using Pyrogram's voice chat
+                # Send audio to chat (this will play in voice chat if joined)
                 await self.app.send_audio(
                     chat_id=chat_id,
                     audio=audio_url,
@@ -51,28 +84,53 @@ class MusicPlayer:
             return False
 
     async def stream_video(self, chat_id, url):
-        """Stream video from YouTube URL"""
+        """Stream video from YouTube"""
         try:
+            user_agent = random.choice(self.user_agents)
+            
             ydl_opts = {
                 'format': 'bestvideo+bestaudio/best',
                 'quiet': True,
                 'no_warnings': True,
+                'extract_flat': False,
+                'ignoreerrors': True,
+                'extractor_args': {
+                    'youtube': {
+                        'player_client': ['android', 'web'],
+                    }
+                },
+                'user_agent': user_agent,
+                'headers': {
+                    'User-Agent': user_agent,
+                    'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+                }
             }
             
             with yt_dlp.YoutubeDL(ydl_opts) as ydl:
                 info = ydl.extract_info(url, download=False)
-                video_url = info['url']
+                
+                if not info:
+                    return False
+                
+                video_url = info.get('url')
+                if not video_url:
+                    # Try to get from formats
+                    formats = info.get('formats', [])
+                    for f in formats:
+                        if f.get('vcodec') != 'none' and f.get('acodec') != 'none':
+                            video_url = f.get('url')
+                            break
+                
+                if not video_url:
+                    return False
+                
                 title = info.get('title', 'Unknown')
                 
-                # Start voice chat
-                await self.start_voice_chat(chat_id)
-                
-                # Send video as document
                 await self.app.send_video(
                     chat_id=chat_id,
                     video=video_url,
                     duration=info.get('duration', 0),
-                    caption=f"🎵 {title}"
+                    caption=f"🎵 **{title}**\n\n🎤 {info.get('uploader', 'Unknown')}"
                 )
                 
                 self.current_song = title
@@ -82,21 +140,6 @@ class MusicPlayer:
                 
         except Exception as e:
             print(f"❌ Video stream error: {e}")
-            return False
-
-    async def start_voice_chat(self, chat_id):
-        """Start voice chat in group"""
-        try:
-            # Check if voice chat already exists
-            await self.app.invoke(
-                CreateGroupCall(
-                    peer=await self.app.resolve_peer(chat_id),
-                    title="Music Bot"
-                )
-            )
-            return True
-        except Exception as e:
-            print(f"Voice chat already exists or error: {e}")
             return False
 
     async def stop_stream(self, chat_id):
@@ -111,21 +154,9 @@ class MusicPlayer:
             return False
 
     async def pause_stream(self, chat_id):
-        """Pause current stream"""
-        try:
-            # Pyrogram doesn't support pause directly
-            # We'll stop and resume
-            self.is_playing = False
-            return True
-        except Exception as e:
-            print(f"❌ Pause error: {e}")
-            return False
+        self.is_playing = False
+        return True
 
     async def resume_stream(self, chat_id):
-        """Resume paused stream"""
-        try:
-            self.is_playing = True
-            return True
-        except Exception as e:
-            print(f"❌ Resume error: {e}")
-            return False
+        self.is_playing = True
+        return True
