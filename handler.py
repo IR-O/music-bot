@@ -1,15 +1,16 @@
 from pyrogram import Client, filters
-from pyrogram.types import Message, InlineKeyboardMarkup, InlineKeyboardButton
+from pyrogram.types import Message
 
 class Handler:
-    def __init__(self, app, player):
-        self.app = app
+    def __init__(self, bot_app, player, assistant_app):
+        self.bot_app = bot_app
         self.player = player
+        self.assistant_app = assistant_app
 
     def register_handlers(self):
         
-        # ============ START COMMAND ============
-        @self.app.on_message(filters.command("start"))
+        # ============ START COMMAND (Bot se reply) ============
+        @self.bot_app.on_message(filters.command("start"))
         async def start_command(client, message: Message):
             user = message.from_user
             await message.reply_text(
@@ -30,8 +31,8 @@ class Handler:
                 disable_web_page_preview=True
             )
 
-        # ============ PLAY COMMAND ============
-        @self.app.on_message(filters.command("play") & filters.group)
+        # ============ PLAY COMMAND (Bot se reply) ============
+        @self.bot_app.on_message(filters.command("play") & filters.group)
         async def play_command(client, message: Message):
             if len(message.command) < 2:
                 await message.reply_text(
@@ -46,25 +47,24 @@ class Handler:
             query = " ".join(message.command[1:])
             chat_id = message.chat.id
             
-            # Send processing message
             processing_msg = await message.reply_text(
                 f"🔍 **Searching:** `{query[:50]}...`\n\n"
                 "⏳ Please wait..."
             )
             
             try:
-                # Bot directly joins voice chat
+                # Assistant ko voice chat join karne ka command do
                 join_success = await self.join_voice_chat(chat_id)
                 if not join_success:
                     await processing_msg.edit_text(
                         "❌ **Failed to join voice chat!**\n\n"
                         "Make sure:\n"
-                        "• I'm an admin in this group\n"
+                        "• Assistant is an admin in this group\n"
                         "• Voice chat is active"
                     )
                     return
                 
-                # Play the song
+                # Assistant se song play karo
                 success = await self.player.play_song(chat_id, query)
                 
                 if success:
@@ -72,7 +72,7 @@ class Handler:
                         f"🎵 **Now Playing:**\n"
                         f"🎶 `{self.player.current_song}`\n\n"
                         f"📌 **Requested by:** {message.from_user.mention}\n"
-                        f"🔊 **Streaming in:** Voice Chat"
+                        f"🔊 **Streaming via:** Assistant Account"
                     )
                 else:
                     await processing_msg.edit_text(
@@ -90,19 +90,17 @@ class Handler:
                     "Please try again."
                 )
 
-        # ============ STOP COMMAND ============
-        @self.app.on_message(filters.command("stop") & filters.group)
+        # ============ STOP COMMAND (Bot se reply) ============
+        @self.bot_app.on_message(filters.command("stop") & filters.group)
         async def stop_command(client, message: Message):
-            chat_id = message.chat.id
             success = await self.player.stop_stream()
-            
             if success:
                 await message.reply_text("⏹️ **Stream stopped!**")
             else:
                 await message.reply_text("❌ **No active stream to stop!**")
 
-        # ============ PAUSE COMMAND ============
-        @self.app.on_message(filters.command("pause") & filters.group)
+        # ============ PAUSE COMMAND (Bot se reply) ============
+        @self.bot_app.on_message(filters.command("pause") & filters.group)
         async def pause_command(client, message: Message):
             success = await self.player.pause_stream()
             if success:
@@ -110,8 +108,8 @@ class Handler:
             else:
                 await message.reply_text("❌ **Failed to pause!**")
 
-        # ============ RESUME COMMAND ============
-        @self.app.on_message(filters.command("resume") & filters.group)
+        # ============ RESUME COMMAND (Bot se reply) ============
+        @self.bot_app.on_message(filters.command("resume") & filters.group)
         async def resume_command(client, message: Message):
             success = await self.player.resume_stream()
             if success:
@@ -119,8 +117,8 @@ class Handler:
             else:
                 await message.reply_text("❌ **Failed to resume!**")
 
-        # ============ CURRENT COMMAND ============
-        @self.app.on_message(filters.command("current") & filters.group)
+        # ============ CURRENT COMMAND (Bot se reply) ============
+        @self.bot_app.on_message(filters.command("current") & filters.group)
         async def current_command(client, message: Message):
             if self.player.current_song:
                 await message.reply_text(
@@ -131,23 +129,21 @@ class Handler:
             else:
                 await message.reply_text("❌ **No song is currently playing!**")
 
-    # ============ JOIN VOICE CHAT ============
+    # ============ VOICE CHAT JOIN (Assistant se) ============
     async def join_voice_chat(self, chat_id):
-        """Bot joins voice chat"""
+        """Assistant voice chat join karega"""
         try:
             from pyrogram.raw.functions.phone import CreateGroupCall
             
-            # Try to create voice chat
             try:
-                await self.app.invoke(
+                await self.assistant_app.invoke(
                     CreateGroupCall(
-                        peer=await self.app.resolve_peer(chat_id),
+                        peer=await self.assistant_app.resolve_peer(chat_id),
                         title="Music Bot 🎵"
                     )
                 )
                 return True
             except Exception:
-                # Voice chat already exists
                 return True
                 
         except Exception as e:
